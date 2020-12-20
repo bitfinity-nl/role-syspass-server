@@ -1,0 +1,100 @@
+  
+---
+# Title: pb-role-syspass-server
+# Author: Bitfinity-NL / L. Rutten
+# File: pb-role-syspass-server.yml
+#
+# Description:
+#   Playbook for setup a syspass server
+#
+# Soure(s):
+#   https://syspass.org/en
+#   https://syspass-doc.readthedocs.io/en/3.1/installing/debian9.html#prerequisites
+#
+
+- hosts: localhost
+  connection: local
+  become: true
+  
+  vars:
+  
+  
+  pre_tasks:
+#    - name: "Download"
+#      git:
+#        repo: https://github.com/bitfinity-nl/role-base.git
+#        dest: "~/.ansible/pull/{{ ansible_hostname }}/roles/role-base"
+
+  roles:
+  
+  tasks:  
+    - name: "Install APT packages"
+      apt:
+        pkg:
+        - locales
+        - apache2
+        - libapache2-mod-php7.0
+        - php-pear
+        - php7.0
+        - php7.0-cgi
+        - php7.0-cli
+        - php7.0-common
+        - php7.0-fpm
+        - php7.0-gd
+        - php7.0-json
+        - php7.0-mysql
+        - php7.0-readline
+        - php7.0
+        - curl
+        - php7.0-intl
+        - php7.0-ldap
+        - php7.0-mcrypt
+        - php7.0-xml
+        - php7.0-mbstring
+
+    - name: "Download soruces from GIT"
+      git:
+        repo: https://github.com/nuxsmin/sysPass.git
+        dest: /var/www/html/syspass
+ 
+    - name: "Correct permissions on directory /var/www/html/syspass"
+      file:
+        path: /var/www/html/syspass
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: 0750
+        
+    - name: "Create /opt/syspass/install_composer.sh"
+      blockinfile:
+        path: /opt/syspass/install_composer.sh
+        marker: "#<!-- {mark} ANSIBLE MANAGED BLOCK -->"
+        block: |
+          #!/bin/sh
+          EXPECTED_SIGNATURE="$(wget -q -O - https://composer.github.io/installer.sig)"
+          php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+          ACTUAL_SIGNATURE="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
+          
+          if [ "$EXPECTED_SIGNATURE" != "$ACTUAL_SIGNATURE" ]
+          then
+              >&2 echo 'ERROR: Invalid installer signature'
+              rm composer-setup.php
+              exit 1
+          fi
+
+          php composer-setup.php --quiet
+          RESULT=$?
+          rm composer-setup.php
+          exit $RESULT
+      owner: root
+      group: root
+      mode: "+x"
+      
+    - name: "Install PHP composer in directory /opt/syspass/"        
+      shell: install_composer.sh
+      args:
+        chdir: /opt/syspass/
+ 
+    - name: "Install sysPass dependencies"        
+      command: php composer.phar install --no-dev
+ 
